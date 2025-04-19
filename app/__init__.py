@@ -24,4 +24,8 @@ def create_app():
     # Importar modelos
     from . import models
     
+    # Registrar blueprints
+    from .routes.calendar import calendar_bp
+    app.register_blueprint(calendar_bp)
+    
     return app 

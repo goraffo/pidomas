@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="calendar-container">
+    <h2>Agenda de Citas</h2>
+    {% if not authorized %}
+        <div class="auth-message">
+            <p>Para acceder al calendario de citas, necesitas autorizar la aplicación.</p>
+            <a href="{{ url_for('calendar.authorize') }}" class="auth-button">Autorizar con Google</a>
+        </div>
+    {% else %}
+        <div class="calendar-controls">
+            <div class="date-range">
+                <div class="form-group">
+                    <label for="start_date">Desde:</label>
+                    <input type="date" id="start_date" name="start_date">
+                </div>
+                <div class="form-group">
+                    <label for="end_date">Hasta:</label>
+                    <input type="date" id="end_date" name="end_date">
+                </div>
+                <div class="form-group">
+                    <label for="duration">Duración (minutos):</label>
+                    <select id="duration" name="duration">
+                        <option value="30">30 minutos</option>
+                        <option value="60" selected>1 hora</option>
+                        <option value="90">1 hora 30 minutos</option>
+                        <option value="120">2 horas</option>
+                    </select>
+                </div>
+                <button onclick="searchSlots()" class="search-button">Buscar horarios</button>
+            </div>
+        </div>
+
+        <div class="available-slots">
+            <h3>Horarios Disponibles</h3>
+            <div id="slots-container" class="slots-grid">
+                {% if available_slots %}
+                    {% for slot in available_slots %}
+                        <div class="slot-card" onclick="selectSlot('{{ slot.start }}', '{{ slot.end }}')">
+                            <div class="slot-time">
+                                <span>{{ slot.start.strftime('%d/%m/%Y %H:%M') }}</span>
+                                <span>-</span>
+                                <span>{{ slot.end.strftime('%H:%M') }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p id="no-slots-message">Selecciona un rango de fechas para ver los horarios disponibles.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="appointment-form" class="appointment-form" style="display: none;">
+            <h3>Agendar Cita</h3>
+            <form id="schedule-form">
+                <input type="hidden" id="selected_start" name="start_time">
+                <input type="hidden" id="selected_end" name="end_time">
+                
+                <div class="form-group">
+                    <label for="summary">Título de la cita:</label>
+                    <input type="text" id="summary" name="summary" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">Descripción:</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+                
+                <button type="submit" class="submit-button">Agendar Cita</button>
+            </form>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.calendar-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.auth-message {
+    text-align: center;
+    margin: 40px 0;
+}
+
+.auth-button {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #4285f4;
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.calendar-controls {
+    background-color: #f5f5f5;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.date-range {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.search-button,
+.submit-button {
+    background-color: #4285f4;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.slot-card {
+    background-color: #f5f5f5;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.slot-card:hover {
+    background-color: #e0e0e0;
+}
+
+.slot-time {
+    text-align: center;
+}
+
+.appointment-form {
+    background-color: #f5f5f5;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 30px;
+}
+</style>
+
+<script>
+function searchSlots() {
+    const startDate = document.getElementById('start_date').value;
+    const endDate = document.getElementById('end_date').value;
+    const duration = document.getElementById('duration').value;
+    
+    if (!startDate || !endDate) {
+        alert('Por favor selecciona las fechas');
+        return;
+    }
+    
+    fetch(`/calendar/slots?start_date=${startDate}T00:00:00&end_date=${endDate}T23:59:59&duration=${duration}`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('slots-container');
+            if (data.slots && data.slots.length > 0) {
+                container.innerHTML = data.slots.map(slot => `
+                    <div class="slot-card" onclick="selectSlot('${slot.start}', '${slot.end}')">
+                        <div class="slot-time">
+                            <span>${new Date(slot.start).toLocaleString()}</span>
+                            <span>-</span>
+                            <span>${new Date(slot.end).toLocaleTimeString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p>No hay horarios disponibles para el rango seleccionado.</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al buscar horarios disponibles');
+        });
+}
+
+function selectSlot(start, end) {
+    document.getElementById('selected_start').value = start;
+    document.getElementById('selected_end').value = end;
+    document.getElementById('appointment-form').style.display = 'block';
+}
+
+document.getElementById('schedule-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const data = {
+        start_time: document.getElementById('selected_start').value,
+        end_time: document.getElementById('selected_end').value,
+        summary: document.getElementById('summary').value,
+        description: document.getElementById('description').value
+    };
+    
+    fetch('/calendar/schedule', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+        } else {
+            alert('Cita agendada exitosamente');
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al agendar la cita');
+    });
+});
+
+// Inicializar fechas
+document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    
+    document.getElementById('start_date').value = today.toISOString().split('T')[0];
+    document.getElementById('end_date').value = nextWeek.toISOString().split('T')[0];
+});
+</script>
+{% endblock %} 
