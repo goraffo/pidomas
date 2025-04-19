@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from flask import session, redirect, url_for
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
@@ -43,6 +44,50 @@ def get_credentials():
     return credentials
 
 def credentials_to_dict(credentials):
+=======
+import os
+import secrets
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+from flask import current_app
+
+# Configuración de OAuth 2.0
+CLIENT_SECRETS_FILE = 'client_secrets.json'
+SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+def get_google_auth_url():
+    """Genera la URL de autorización de Google OAuth2."""
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
+    )
+    
+    # Generar un estado aleatorio para prevenir CSRF
+    state = secrets.token_urlsafe(16)
+    
+    # Generar la URL de autorización
+    auth_url, _ = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        state=state
+    )
+    
+    return auth_url, state
+
+def get_google_token(code):
+    """Obtiene el token de acceso de Google usando el código de autorización."""
+    flow = Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE,
+        scopes=SCOPES,
+        redirect_uri=current_app.config['GOOGLE_REDIRECT_URI']
+    )
+    
+    flow.fetch_token(code=code)
+    credentials = flow.credentials
+    
+>>>>>>> 646f419
     return {
         'token': credentials.token,
         'refresh_token': credentials.refresh_token,
